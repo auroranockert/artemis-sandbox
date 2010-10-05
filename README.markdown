@@ -33,4 +33,4 @@ Yes, there should be.
 About
 -------------------------------------------------------------------------------
 
-Please send mail (jens@nockert.se) if you use it, I like 
+Please send mail (jens@nockert.se) if you use it, I like mail.
