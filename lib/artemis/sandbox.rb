@@ -8,13 +8,6 @@ module Artemis
   end
   
   #
-  # SandboxError, raised when there was a problem dropping privileges
-  #
-  
-  class SandboxError < StandardError
-  end
-  
-  #
   # Just to prepare Ruby
   #
   
@@ -22,14 +15,9 @@ module Artemis
   end
   
   #
-  # Artemis.sandbox(profile, command, *arguments)
-  #   - profile
-  #     * :no_internet
-  #     * :no_network
-  #     * :no_filesystem_write
-  #     * :no_filesystem_write_outside_tmp
-  #     * :pure_computation
-  #     * An absolute path to a .sb file, as a String or Artemis::Path
+  # Artemis.sandbox(sandbox, command, *arguments)
+  #   - sandbox
+  #     * A Artemis::Sanbox instance
   #   - command
   #     * A string, representing the application to start
   #   - *arguments
@@ -41,15 +29,13 @@ module Artemis
   #
   
   class << self
-    def sandbox(profile, command, *arguments)
+    def sandbox(sandbox, command, *arguments)
       Process.fork do
-        case profile
-        when Symbol
-          Artemis::Sandbox.predefined(profile)
-        when String, Artemis::Path
-          Artemis::Sandbox.config(profile.to_s)
+        case sandbox
+        when Artemis::Sandbox
+          sandbox.apply!
         else
-          raise SandboxError, "invalid profile type, need a path or symbol"
+          raise SecurityError, "invalid sandbox"
         end
         
         yield if block_given?

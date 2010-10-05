@@ -1,6 +1,14 @@
+/*
+* Interface to sandbox/seatbelt.
+*
+* This file is covered by the Ruby license. See LICENSE for more details.
+*
+* Copyright (C) 2010, Apple Inc. All rights reserved.
+*/
+
 #include <ruby.h>
 
-/* Yes, I know people will love me for this */
+/* TODO: Not use private APIs. */
 #define __APPLE_API_PRIVATE
 #include "sandbox.h"
 #undef __APPLE_API_PRIVATE
@@ -8,51 +16,72 @@
 static VALUE rb_mArtemis;
 
 static VALUE rb_cSandbox;
-static VALUE rb_cSandboxError;
 
-static ID sandbox_no_internet;
-static ID sandbox_no_network;
-static ID sandbox_no_filesystem_write;
-static ID sandbox_no_filesystem_write_outside_tmp;
-static ID sandbox_pure_computation;
+typedef struct {
+	const char * profile;
+	uint64_t flags;
+} rb_sandbox_t;
 
-VALUE sandbox_predefined(VALUE self, VALUE profile) {
-	char * error;
+static VALUE rb_sandbox_s_alloc(VALUE klass) {
+	rb_sandbox_t * sb = ALLOC(rb_sandbox_t);
 	
-	const char * sandbox_profile;
+	sb->profile = NULL;
+	sb->flags = 0;
 	
-	ID id_profile = rb_to_id(profile);
-	
-	if (sandbox_no_internet == id_profile) {
-		sandbox_profile = kSBXProfileNoInternet;
-	} else if (sandbox_no_network == id_profile) {
-		sandbox_profile = kSBXProfileNoNetwork;
-	} else if (sandbox_no_filesystem_write == id_profile) {
-		sandbox_profile = kSBXProfileNoWrite;
-	} else if (sandbox_no_filesystem_write_outside_tmp == id_profile) {
-		sandbox_profile = kSBXProfileNoWriteExceptTemporary;
-	} else if (sandbox_pure_computation == id_profile) {
-		sandbox_profile = kSBXProfilePureComputation;
-	} else {
-		rb_raise(rb_cSandboxError, "invalid profile '%s'", StringValuePtr(profile));
-	}
-	
-	if (sandbox_init(sandbox_profile, SANDBOX_NAMED, &error)) {
-		rb_raise(rb_cSandboxError, "invalid profile '%s', error (%s)", StringValuePtr(profile), error);
-		
-		sandbox_free_error(error);
-	}
-	
-	return Qnil;
+	return Data_Wrap_Struct(klass, NULL, NULL, sb);
 }
 
-VALUE sandbox_config(VALUE self, VALUE profile) {
-	char * error;
+static inline VALUE sandbox(const char * name, uint64_t flags) {
+	VALUE obj = rb_sandbox_s_alloc(rb_cSandbox);
 	
-	if (sandbox_init(StringValuePtr(profile), SANDBOX_NAMED_EXTERNAL, &error)) {
-		rb_raise(rb_cSandboxError, "invalid profile '%s', error (%s)", StringValuePtr(profile), error);
-		
-		sandbox_free_error(error);
+	rb_sandbox_t * box;
+	
+	Data_Get_Struct(obj, rb_sandbox_t, box);
+	
+	box->profile = name;
+	box->flags = flags;
+	
+	return rb_obj_freeze(obj);
+}
+
+static inline VALUE predefined_sandbox(const char * name) {
+	return sandbox(name, SANDBOX_NAMED);
+}
+
+static VALUE rb_sandbox_s_no_internet(VALUE klass) {
+	return predefined_sandbox(kSBXProfileNoInternet);
+}
+
+static VALUE rb_sandbox_s_no_network(VALUE klass) {
+	return predefined_sandbox(kSBXProfileNoNetwork);
+}
+
+static VALUE rb_sandbox_s_no_writes(VALUE klass) {
+	return predefined_sandbox(kSBXProfileNoWrite);
+}
+
+static VALUE rb_sandbox_s_temporary_writes(VALUE klass) {
+	return predefined_sandbox(kSBXProfileNoWriteExceptTemporary);
+}
+
+static VALUE rb_sandbox_s_pure_computation(VALUE klass) {
+	return predefined_sandbox(kSBXProfilePureComputation);
+}
+
+static VALUE rb_sandbox_s_from_file(VALUE klass, VALUE filename) {
+	return sandbox(StringValuePtr(filename), SANDBOX_NAMED_EXTERNAL);
+}
+
+static VALUE rb_sandbox_apply(VALUE self)
+{
+	rb_sandbox_t * box;
+	
+	Data_Get_Struct(self, rb_sandbox_t, box);
+	
+	char *error = NULL;
+	
+	if (sandbox_init(box->profile, box->flags, &error) == -1) {
+	    rb_raise(rb_eSecurityError, "Couldn't apply sandbox: `%s`", error);
 	}
 	
 	return Qnil;
@@ -61,16 +90,17 @@ VALUE sandbox_config(VALUE self, VALUE profile) {
 void Init_artemis_sandbox() {
 	rb_mArtemis = rb_define_module("Artemis");
 	
-	rb_cSandbox = rb_define_class_under (rb_mArtemis, "Sandbox", rb_cObject);
+	rb_cSandbox = rb_define_class_under (rb_mArtemis, "Sandbox", rb_cData);
 	
-	rb_cSandboxError = rb_const_get(rb_mArtemis, rb_intern("SandboxError"));
+	rb_define_alloc_func(rb_cSandbox, rb_sandbox_s_alloc);
 	
-	rb_define_singleton_method(rb_cSandbox, "predefined", sandbox_predefined, 1);
-	rb_define_singleton_method(rb_cSandbox, "config",     sandbox_config,     1);
+	rb_define_singleton_method(rb_cSandbox, "no_internet",      rb_sandbox_s_no_internet, 0);
+	rb_define_singleton_method(rb_cSandbox, "no_network",       rb_sandbox_s_no_network, 0);
+	rb_define_singleton_method(rb_cSandbox, "no_writes",        rb_sandbox_s_no_writes, 0);
+	rb_define_singleton_method(rb_cSandbox, "temporary_writes", rb_sandbox_s_temporary_writes, 0);
+	rb_define_singleton_method(rb_cSandbox, "pure_computation", rb_sandbox_s_pure_computation, 0);
 	
-	sandbox_no_internet                     = rb_intern("no_internet");
-	sandbox_no_network                      = rb_intern("no_network");
-	sandbox_no_filesystem_write             = rb_intern("no_filesystem_write");
-	sandbox_no_filesystem_write_outside_tmp = rb_intern("no_filesystem_write_outside_tmp");
-	sandbox_pure_computation                = rb_intern("pure_computation");
+	rb_define_singleton_method(rb_cSandbox, "from_file", rb_sandbox_s_from_file, 1);
+	
+	rb_define_method(rb_cSandbox, "apply!", rb_sandbox_apply, 0);
 }

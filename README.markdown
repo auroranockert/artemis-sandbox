@@ -5,20 +5,18 @@ The Artemis sandbox, a set of APIs pulled from the Artemis package manager, it
 is used to sandbox fetching, extraction, building and installing packages so
 none of the packages write outside of their domain.
 
+It's an extended clone of the MacRuby APIs.
+
 Use
 -------------------------------------------------------------------------------
 
-It's not for protecting your program from intruders, it's for protecting it
-against itself, please respect that.
-
-API
--------------------------------------------------------------------------------
+It's not for protecting your program from intruders, it's for protecting your
+program against itself, please respect that.
 
 It is a work in progress, so if you want something stable and/or good, use Dia.
 
-I might want make the application quit instead of failing to drop privileges,
-since that allows for a better and safer atmosphere overall, input on that
-would not hurt.
+API
+-------------------------------------------------------------------------------
 
 Another thing, I might move the stuff in 'lib/artemis/sandbox' to a more
 generic library, it doesn't really fit here better than in some sort of common
