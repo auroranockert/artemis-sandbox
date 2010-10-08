@@ -22,13 +22,18 @@ typedef struct {
 	uint64_t flags;
 } rb_sandbox_t;
 
+static void rb_sandbox_s_free(void * instance) {
+	free(((rb_sandbox_t *)instance)->profile);
+	free(instance);
+}
+
 static VALUE rb_sandbox_s_alloc(VALUE klass) {
 	rb_sandbox_t * sb = ALLOC(rb_sandbox_t);
 	
 	sb->profile = NULL;
 	sb->flags = 0;
 	
-	return Data_Wrap_Struct(klass, NULL, NULL, sb);
+	return Data_Wrap_Struct(klass, NULL, rb_sandbox_s_free, sb);
 }
 
 static inline VALUE sandbox(const char * name, uint64_t flags) {
@@ -38,7 +43,7 @@ static inline VALUE sandbox(const char * name, uint64_t flags) {
 	
 	Data_Get_Struct(obj, rb_sandbox_t, box);
 	
-	box->profile = name;
+	box->profile = strcpy(malloc(strlen(name)), name);
 	box->flags = flags;
 	
 	return rb_obj_freeze(obj);
